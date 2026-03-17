@@ -18,3 +18,9 @@ wheels/
 
 # Ignore raw data files
 data/
+
+# Terraform localized files
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
