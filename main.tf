@@ -116,6 +116,7 @@ resource "aws_lambda_function" "crypto_ingestion_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.lambda_docker_repo.repository_url}:latest"
   timeout       = 120 
+  memory_size   = 256  # <-- Upgraded RAM for Pandas/PyArrow
 
   environment {
     variables = {
@@ -165,4 +166,58 @@ output "athena_database_name" {
 
 output "ecr_repository_url" {
   value = aws_ecr_repository.lambda_docker_repo.repository_url
+}
+
+# ==========================================
+# Glue Crawler IAM Role
+# ==========================================
+resource "aws_iam_role" "glue_crawler_role" {
+  name = "crypto_glue_crawler_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "glue.amazonaws.com"
+      }
+    }]
+  })
+}
+
+# Grant Glue permission to read S3 and write to CloudWatch logs
+resource "aws_iam_role_policy_attachment" "glue_service" {
+  role       = aws_iam_role.glue_crawler_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+}
+
+resource "aws_iam_role_policy" "glue_s3_read" {
+  name = "glue_s3_read_policy"
+  role = aws_iam_role.glue_crawler_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action   = ["s3:GetObject", "s3:ListBucket"]
+      Effect   = "Allow"
+      Resource = ["${aws_s3_bucket.raw_zone.arn}", "${aws_s3_bucket.raw_zone.arn}/*"]
+    }]
+  })
+}
+
+# ==========================================
+# Glue Crawler
+# ==========================================
+resource "aws_glue_crawler" "crypto_crawler" {
+  database_name = aws_glue_catalog_database.crypto_db.name
+  name          = "crypto-raw-crawler"
+  role          = aws_iam_role.glue_crawler_role.arn
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.raw_zone.bucket}/"
+  }
+
+  # This ensures the crawler runs only when we tell it to for now
+  table_prefix = "raw_"
 }
