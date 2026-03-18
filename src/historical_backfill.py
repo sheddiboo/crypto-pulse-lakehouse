@@ -9,7 +9,7 @@ from tqdm import tqdm
 # Setup and Authentication
 # Loads environment variables to securely access the API key.
 load_dotenv()
-API_KEY = os.getenv('api_key')
+API_KEY = os.getenv('COINGECKO_API_KEY')
 
 if not API_KEY:
     raise ValueError("API Key not found. Please verify the .env file configuration.")

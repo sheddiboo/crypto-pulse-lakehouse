@@ -24,3 +24,6 @@ data/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
+
+# Ignore the tfvars file so API keys are never pushed to GitHub
+terraform.tfvars

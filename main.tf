@@ -1,4 +1,6 @@
+# ==========================================
 # Provider Configuration
+# ==========================================
 terraform {
   required_providers {
     aws = {
@@ -16,6 +18,18 @@ provider "aws" {
   region = "eu-west-1"
 }
 
+# ==========================================
+# Variables
+# ==========================================
+variable "coingecko_api_key" {
+  description = "API Key for CoinGecko"
+  type        = string
+  sensitive   = true
+}
+
+# ==========================================
+# Storage & Registry Infrastructure
+# ==========================================
 # Random ID Generator for Unique Bucket Names
 resource "random_id" "bucket_suffix" {
   byte_length = 4
@@ -34,7 +48,6 @@ resource "aws_s3_bucket" "gold_zone" {
 }
 
 # The Athena / Glue Data Catalog Database
-# This allows Athena to query the files sitting in your S3 buckets.
 resource "aws_glue_catalog_database" "crypto_db" {
   name        = "crypto_pulse_db"
   description = "Database for the Crypto Pulse Lakehouse"
@@ -46,6 +59,9 @@ resource "aws_ecr_repository" "lambda_docker_repo" {
   force_delete = true
 }
 
+# ==========================================
+# Security & IAM Roles
+# ==========================================
 # IAM Execution Role for Lambda
 resource "aws_iam_role" "lambda_exec_role" {
   name = "crypto_lambda_execution_role"
@@ -91,7 +107,50 @@ resource "aws_iam_role_policy" "lambda_s3_logs_policy" {
   })
 }
 
+# ==========================================
+# Compute: Lambda Function
+# ==========================================
+resource "aws_lambda_function" "crypto_ingestion_lambda" {
+  function_name = "crypto-hourly-ingestion"
+  role          = aws_iam_role.lambda_exec_role.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.lambda_docker_repo.repository_url}:latest"
+  timeout       = 120 
+
+  environment {
+    variables = {
+      RAW_S3_BUCKET     = aws_s3_bucket.raw_zone.bucket
+      COINGECKO_API_KEY = var.coingecko_api_key
+    }
+  }
+}
+
+# ==========================================
+# Automation: EventBridge (Cron Job)
+# ==========================================
+resource "aws_cloudwatch_event_rule" "hourly_trigger" {
+  name                = "crypto-hourly-trigger"
+  description         = "Fires every hour to trigger the crypto ingestion Lambda"
+  schedule_expression = "rate(1 hour)"
+}
+
+resource "aws_cloudwatch_event_target" "trigger_lambda" {
+  rule      = aws_cloudwatch_event_rule.hourly_trigger.name
+  target_id = "IngestionLambda"
+  arn       = aws_lambda_function.crypto_ingestion_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.crypto_ingestion_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.hourly_trigger.arn
+}
+
+# ==========================================
 # Output Variables
+# ==========================================
 output "raw_bucket_name" {
   value = aws_s3_bucket.raw_zone.bucket
 }
