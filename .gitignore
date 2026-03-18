@@ -1,3 +1,4 @@
+.vscode/
 # Python-generated files
 __pycache__/
 *.py[oc]
@@ -23,7 +24,7 @@ data/
 .terraform/
 *.tfstate
 *.tfstate.backup
-.terraform.lock.hcl
+*.tfplan
 
 # Ignore the tfvars file so API keys are never pushed to GitHub
 terraform.tfvars
