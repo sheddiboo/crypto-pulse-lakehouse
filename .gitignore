@@ -28,3 +28,9 @@ data/
 
 # Ignore the tfvars file so API keys are never pushed to GitHub
 terraform.tfvars
+
+# Application & dbt Artifacts
+logs/
+transform/logs/
+transform/target/
+transform/dbt_packages/

@@ -218,6 +218,8 @@ resource "aws_glue_crawler" "crypto_crawler" {
     path = "s3://${aws_s3_bucket.raw_zone.bucket}/"
   }
 
-  # This ensures the crawler runs only when we tell it to for now
   table_prefix = "raw_"
+  
+  # AUTOMATION ADDED: Runs at 15 minutes past the hour, every hour
+  schedule = "cron(15 * * * ? *)"
 }

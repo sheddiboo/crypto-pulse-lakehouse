@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: raw
+    database: awsdatacatalog
+    schema: crypto_pulse_db
+    tables:
+      - name: raw_hourly_ingestion
+      - name: raw_raw_historical
