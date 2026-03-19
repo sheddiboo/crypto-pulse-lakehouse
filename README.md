@@ -7,7 +7,7 @@ This project solves that problem by building a **fully automated, serverless Med
 
 ---
 
-## 🛠️ Technology Stack (Course Alignment)
+## 🛠️ Technology Stack 
 While the course heavily focused on Google Cloud Platform (GCP) and traditional orchestrators (Kestra/Mage/Airflow), I chose to challenge myself by building a **fully Serverless architecture on AWS**. 
 
 Here is how my chosen tools map to the course curriculum:
@@ -91,15 +91,3 @@ To avoid AWS charges, destroy all infrastructure when finished:
 ```bash
 make tf-destroy
 ```
-
----
-
-## 🏆 Evaluation Criteria Checklist
-* [x] **Problem Description:** Clear use case addressing the gap between historical and live crypto market data.
-* [x] **Cloud:** 100% deployed on AWS.
-* [x] **Infrastructure as Code:** Fully managed by Terraform.
-* [x] **Workflow Orchestration:** End-to-end automated batch orchestration using AWS EventBridge.
-* [x] **Data Warehouse:** Tables natively partitioned in S3 and exposed via AWS Athena/Glue.
-* [x] **Transformations:** Modular data modeling and deduplication using dbt Core.
-* [x] **Dashboard:** 2+ tiles built with Streamlit.
-* [x] **Reproducibility:** Extensively documented with `Makefile` commands for zero-dependency execution.
