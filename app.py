@@ -23,14 +23,10 @@ st.markdown("""
 st.title("📈 Crypto Market Pulse Dashboard")
 
 # ==========================================
-# Data Connection (Now 100% Pre-Processed in AWS)
+# Data Connection
 # ==========================================
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300) # Reduced TTL to 5 mins to catch the :20 updates faster
 def load_data():
-    """
-    Retrieves the materialized gold layer table from AWS Athena.
-    Data is already truncated to the hour and natively in West Africa Time (WAT) via dbt.
-    """
     query = """
         SELECT * FROM fct_crypto_market_pulse 
         ORDER BY observed_at DESC
@@ -40,8 +36,6 @@ def load_data():
         database="crypto_pulse_db",
         ctas_approach=False 
     )
-    
-    # Simple conversion to datetime (No heavy timezone math needed anymore!)
     df['observed_at'] = pd.to_datetime(df['observed_at'])
     return df
 
@@ -53,10 +47,8 @@ with st.spinner("Fetching Pre-Optimized Gold Layer data from AWS Athena..."):
         st.stop()
 
 # ==========================================
-# Dashboard Layout
+# Header & Metric Carousel
 # ==========================================
-
-# Extracts the pre-computed WAT timestamp
 latest_time_wat = df['observed_at'].max()
 str_wat = latest_time_wat.strftime('%Y-%m-%d %I:%M %p WAT')
 
@@ -103,6 +95,32 @@ with cols[6]:
 
 st.divider()
 
+# ==========================================
+# NEW: Categorical Distribution (Project Requirement)
+# ==========================================
+st.subheader("🏗️ Market Composition (Categorical Distribution)")
+
+# Get the latest price for every unique coin to compare them
+latest_all_coins = df.sort_values('observed_at').groupby('coin_id').tail(1)
+
+fig_dist = px.bar(
+    latest_all_coins,
+    x='coin_id',
+    y='price',
+    color='coin_id',
+    title="Price Distribution Across Asset Categories",
+    labels={'price': 'Current Price (USD)', 'coin_id': 'Cryptocurrency'},
+    text_auto='.2s',
+    template="plotly_dark"
+)
+fig_dist.update_layout(showlegend=False, height=450, margin=dict(t=40, b=0))
+st.plotly_chart(fig_dist, use_container_width=True)
+
+st.divider()
+
+# ==========================================
+# Temporal Trends
+# ==========================================
 st.subheader("📉 7-Day Price Trends & Moving Averages")
 
 @st.fragment
@@ -116,7 +134,7 @@ def render_interactive_chart(data):
         y=['price', 'moving_avg_24h'],
         labels={'value': 'Price (USD)', 'observed_at': 'Time (WAT)', 'variable': 'Metric'},
         color_discrete_map={'price': '#1f77b4', 'moving_avg_24h': '#ff7f0e'},
-        height=700 
+        height=600 
     )
 
     newnames = {'price': 'Actual Price', 'moving_avg_24h': '24h Moving Average'}
