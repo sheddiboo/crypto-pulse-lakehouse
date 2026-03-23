@@ -1,52 +1,97 @@
+
 # 📈 Crypto Market Pulse: A Serverless Medallion Lakehouse
 
 ## 🎯 Problem Statement
 Cryptocurrency markets operate 24/7, making it difficult to maintain a unified, highly accurate dataset that seamlessly bridges deep historical data with live, up-to-the-minute price action. 
 
-This project solves that problem by building a **fully automated, serverless Medallion Data Lakehouse**. It ingests a year of historical backfill data and seamlessly merges it with live hourly updates from the CoinGecko API. The pipeline automatically deduplicates overlapping records, calculates 24-hour moving averages, and serves the optimized data to an interactive Streamlit dashboard.
+This project solves that problem by building a **fully automated, serverless Medallion Data Lakehouse**. It ingests a year of historical backfill data and seamlessly merges it with live hourly updates from the CoinGecko API. The pipeline automatically deduplicates overlapping records, calculates 24-hour moving averages, tracks market cap dominance, and serves the optimized data to a highly interactive, professional-grade Streamlit dashboard.
 
 ---
 
-## 🛠️ Technology Stack 
-While the course heavily focused on Google Cloud Platform (GCP) and traditional orchestrators (Kestra/Mage/Airflow), I chose to challenge myself by building a **fully Serverless architecture on AWS**. 
+## 🛠️ Technology Stack & Architecture Design
+The Data Engineering curriculum extensively covers fundamental concepts using Google Cloud Platform (GCP) and traditional always-on orchestration tools. For this capstone, I applied those core engineering principles but pivoted to a **fully Serverless architecture on AWS** to challenge myself with event-driven design and minimize idle computing costs.
 
-Here is how my chosen tools map to the course curriculum:
+Here is a deep dive into the architecture and the rationale behind each technology:
 
-| Concept | Course Curriculum | My Architecture | Why I Chose It (Tool Explanation) |
-| :--- | :--- | :--- | :--- |
-| **Cloud Provider** | GCP | **AWS** | Industry standard cloud provider with robust serverless offerings. |
-| **Infrastructure as Code** | Terraform | **Terraform** | Used via a Dockerized `Makefile` to ensure zero local dependencies. |
-| **Orchestration (Batch)** | Kestra / Airflow | **AWS EventBridge** | A serverless event bus. Instead of paying for an always-on Airflow server, EventBridge triggers my pipeline exactly on the hour using a cron expression. |
-| **Data Ingestion** | Python Scripts | **AWS Lambda (Dockerized)** | Serverless compute. A custom Docker image using `uv` runs my Python extraction logic, pulling from the CoinGecko API. |
-| **Data Lake Storage** | Google Cloud Storage | **AWS S3** | Used to build a "Bronze" raw zone and a "Gold" optimized zone. |
-| **Data Warehouse** | BigQuery | **AWS Athena + Glue** | **Glue Crawler:** Automatically scans my S3 buckets to infer schemas and build a data catalog. <br>**Athena:** A serverless query engine (based on Trino/Presto) that allows me to run standard SQL directly against Parquet files in S3 without loading them into a traditional database. |
-| **Transformations** | dbt | **dbt Core (`dbt-athena`)** | Builds the Silver (Staging) and Gold (Marts) layers, handling deduplication and rolling averages. |
-| **Dashboard** | Looker Studio | **Streamlit** | Python-based UI connected directly to Athena via `boto3`/`awswrangler`. |
+### 1. Infrastructure as Code (IaC) & Containerization
+* **Terraform:** As taught in the course, manually clicking through cloud consoles is not reproducible or scalable. I used Terraform to declaratively provision all AWS resources (S3, ECR, IAM, Lambda, EventBridge, Glue). To take it a step further, I executed Terraform via a Dockerized `Makefile` to ensure there are zero local dependencies required to deploy the infrastructure.
+* **Docker:** Containerization ensures that code runs the same way everywhere. Instead of relying on standard AWS Lambda zip uploads, which have severe size limits, I packaged my Python ingestion scripts inside a Docker image. This allowed me to safely include heavy data-science libraries like `pandas` and `pyarrow`.
+
+### 2. Orchestration (The Serverless Pivot)
+* **AWS EventBridge & dbt Cloud:** Traditional orchestration tools taught in the course (like Apache Airflow, Mage, or Kestra) require an always-on server (EC2 or similar compute instance) constantly running to check schedules, which incurs continuous costs. I opted for a serverless approach: 
+  * **EventBridge** acts as the cron scheduler, firing exactly on the hour to trigger the Lambda ingestion function. 
+  * **dbt Cloud** handles the downstream transformation orchestration, running automatically at 20 minutes past the hour. This decoupled, event-driven approach means I only pay for the exact seconds the code is running.
+
+### 3. Data Lake Storage & Formats
+* **AWS S3:** The AWS equivalent to Google Cloud Storage (GCS). It serves as the foundation of the Medallion Lakehouse, divided logically into a "Bronze" raw zone and a "Gold" optimized zone.
+* **Parquet:** Instead of storing raw data as CSV or JSON, the ingestion scripts convert the data in-memory to native columnar Parquet files before uploading to S3. This drastically reduces storage size and heavily optimizes the downstream query scanning speed.
+
+### 4. Data Warehouse & Query Engine
+* **AWS Athena + AWS Glue:** Instead of loading data into a traditional managed Data Warehouse like BigQuery or Redshift, I utilized a true Lakehouse approach.
+  * **AWS Glue Crawler** automatically scans the S3 buckets, infers the schema of the Parquet files, and builds a metadata catalog.
+  * **Amazon Athena** is a serverless interactive query engine (built on Presto/Trino). It allows me to write standard SQL queries directly against the files sitting in S3 without ever "loading" them into a database.
+
+### 5. Transformations (dbt)
+* **dbt Core (`dbt-athena`):** dbt is the industry standard for transforming data in the warehouse. I utilized dbt to enforce data quality and implement the Medallion architecture:
+  * **Silver Layer (`stg_crypto_prices`):** Unifies the historical backfill and live data, standardizes UNIX timestamps, and uses `ROW_NUMBER()` window functions to drop duplicate records where the live pipeline overlaps the backfill.
+  * **Gold Layer (`fct_crypto_market_pulse`):** A materialized Parquet table that calculates business logic—rolling 24-hour moving averages and percentage changes—while applying timezone optimizations (Predicate Pushdown) to make the dashboard blazing fast.
+
+### 6. Dashboard Integration
+* **Streamlit:** To visualize the final Gold layer, I built a custom Python web application using Streamlit. Streamlit is lightweight, highly customizable, and integrates seamlessly with AWS via `awswrangler` (AWS SDK for pandas), allowing me to pull Athena query results directly into interactive Plotly charts.
 
 ---
 
-## 🏗️ Architecture & Pipeline Flow
+## 🏗️ Pipeline Flow
 
-1. **The Backfill (One-Off):** A Python script fetches 1 year of historical data from CoinGecko, converts it to Parquet using `pandas` and `pyarrow`, and uploads it to the Bronze S3 bucket.
-2. **Live Ingestion (Hourly Batch):** AWS EventBridge fires every hour, triggering a Dockerized AWS Lambda function. The function fetches the latest prices and drops a new Parquet file into the Bronze S3 bucket partitioned by `year/month/day/hour`.
-3. **The Data Catalog (Automated):** An AWS Glue Crawler runs on a cron schedule (`15 * * * ? *`), detecting new S3 partitions and automatically updating the AWS Glue Data Catalog.
-4. **Transformation (dbt):**
-    * **Silver Layer (`stg_crypto_prices`):** A view that unifies historical and live data, standardizes timestamps, and uses `ROW_NUMBER()` window functions to drop duplicate records where the live pipeline overlaps the historical backfill.
-    * **Gold Layer (`fct_crypto_market_pulse`):** A materialized Parquet table that calculates the rolling 24-hour moving average and 24-hour percentage change.
-5. **Dashboard:** Streamlit queries the Gold table in Athena to visualize the data.
+1. **The Backfill (One-Off):** A Python script fetches 1 year of historical data from CoinGecko, converts it to Parquet, and uploads it to the Bronze S3 bucket.
+2. **Live Ingestion (Hourly Batch):** AWS EventBridge triggers the Dockerized AWS Lambda function hourly to fetch the latest prices and drop a new Parquet file into the Bronze S3 bucket partitioned by `year/month/day/hour`.
+3. **The Data Catalog:** An AWS Glue Crawler runs on a cron schedule (`15 * * * ? *`), automatically updating the Data Catalog with new S3 partitions.
+4. **Transformation:** dbt Cloud triggers at 20 minutes past the hour, running data quality tests, deduplicating the data, and materializing the optimized Gold table in Athena.
+5. **Dashboard:** Streamlit queries the Gold table in Athena to visualize the market analytics.
+
+---
+
+## 📂 Project Directory Structure
+
+```text
+crypto-pulse-lakehouse/
+├── notebook/
+│   └── explore_api.ipynb         # Initial API testing, validation, and schema exploration
+├── src/
+│   ├── historical_backfill.py    # Script to extract 1-year historical data and load to S3
+│   └── lambda_function.py        # Dockerized AWS Lambda handler for live hourly ingestion
+├── transform/                    # dbt project directory
+│   ├── models/
+│   │   ├── staging/              # Silver layer: stg_crypto_prices.sql (cleaning & deduplication)
+│   │   └── marts/                # Gold layer: fct_crypto_market_pulse.sql (business logic)
+│   ├── tests/                    # Custom dbt data quality tests
+│   ├── dbt_project.yml           # dbt configuration
+│   └── profiles.yml              # dbt-athena connection configuration
+├── .env.example                  # Template for environment variables
+├── .gitignore                    # Git ignore file for localized/sensitive files
+├── app.py                        # Streamlit dashboard application
+├── Dockerfile                    # Container definition for AWS Lambda deployment
+├── main.tf                       # Terraform declarative infrastructure definitions
+├── Makefile                      # Command shortcuts for infrastructure provisioning
+├── pyproject.toml                # Python dependencies managed by 'uv'
+├── uv.lock                       # Deterministic dependency lockfile
+└── README.md                     # Project documentation
+```
+*(Note: Directories like `.venv`, `.terraform`, `logs/`, and `.env` are dynamically generated locally and excluded from version control).*
 
 ---
 
 ## 📊 The Dashboard
-The Streamlit dashboard fulfills the project requirement of having at least two distinct tiles:
-* **Tile 1 (Temporal):** A time-series line chart visualizing the real-time price trend overlaid with the 24-hour moving average.
-* **Tile 2 (Categorical/Metrics):** Dynamic KPI cards comparing the current market cap and 24-hour percentage change across the tracked cryptocurrencies.
+The Streamlit dashboard delivers a professional, trading-platform-style UI with three distinct analytical components:
+* **Tile 1 (Temporal):** An interactive Plotly time-series line chart visualizing the 7-day real-time price trend overlaid with a rolling 24-hour moving average.
+* **Tile 2 (Categorical):** Dynamic Market Composition charts (a Donut chart and a custom-formatted Bar chart). These visuals compare the selected asset's market cap (formatted cleanly into billions) against the rest of the market.
+* **Tile 3 (Metrics):** Dynamic KPI cards highlighting the current price, total market cap, and 24-hour percentage change.
 
 ---
 
 ## 🚀 Reproducibility (How to run this project)
 
-I implemented a **Dockerized Makefile** approach. You do not need to install Terraform locally to deploy this infrastructure.
+This project implements a **Dockerized Makefile** approach. You do not need to install Terraform locally to deploy this infrastructure.
 
 ### Prerequisites
 1. Docker installed and running.
@@ -67,17 +112,19 @@ make tf-apply
 ```
 *(This creates the S3 buckets, IAM roles, ECR repository, Lambda function, EventBridge rule, and Glue Crawler).*
 
-### Step 3: Deploy Lambda Code
-Build and push the Dockerized Python ingestion script to AWS ECR:
+### Step 3: Deploy Lambda & Backfill Data
+Build and push the Dockerized Python ingestion script to AWS ECR, then run the historical backfill script to seed your data lake:
 ```bash
 make docker-push
+python src/historical_backfill.py 
 ```
 
 ### Step 4: Run Transformations
-Navigate to the dbt project, ensure your `profiles.yml` points to the newly created S3 Gold bucket, and run the pipeline:
+Navigate to the dbt project, ensure your `profiles.yml` points to the newly created S3 Gold bucket, and build the Medallion architecture:
 ```bash
 cd transform
-dbt run
+dbt deps
+dbt build
 ```
 
 ### Step 5: Launch the Dashboard
