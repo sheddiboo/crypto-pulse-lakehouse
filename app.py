@@ -4,143 +4,143 @@ import pandas as pd
 import plotly.express as px
 
 # ==========================================
-# Page Configuration & CSS Styling
+# Page Configuration & Custom CSS
 # ==========================================
 st.set_page_config(page_title="Crypto Market Pulse", page_icon="📈", layout="wide")
 
 st.markdown("""
     <style>
+    /* Center and resize the main title */
+    .main-title {
+        text-align: center;
+        font-size: 2.2rem; /* Reduced from default */
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    /* Reduce subtitle sizes */
+    .custom-subheader {
+        font-size: 1.3rem; /* Reduced size */
+        font-weight: 600;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }
     .block-container {
-        padding-top: 1rem;
+        padding-top: 1.5rem;
         padding-bottom: 0rem;
     }
     [data-testid="stMetricValue"] {
         font-size: 1.6rem;
+        color: #00f2ff;
     }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("Crypto Market Pulse Dashboard")
+# Centered Title
+st.markdown('<p class="main-title">Crypto Market Pulse Dashboard</p>', unsafe_allow_html=True)
 
 # ==========================================
 # Data Connection
 # ==========================================
 @st.cache_data(ttl=300)
 def load_data():
-    query = """
-        SELECT * FROM fct_crypto_market_pulse 
-        ORDER BY observed_at DESC
-    """
-    df = wr.athena.read_sql_query(
-        sql=query,
-        database="crypto_pulse_db",
-        ctas_approach=False 
-    )
+    query = "SELECT * FROM fct_crypto_market_pulse ORDER BY observed_at DESC"
+    df = wr.athena.read_sql_query(sql=query, database="crypto_pulse_db", ctas_approach=False)
     df['observed_at'] = pd.to_datetime(df['observed_at'])
     return df
 
-with st.spinner("Fetching data from AWS Athena..."):
+with st.spinner("Synchronizing with Lakehouse..."):
     try:
         df = load_data()
     except Exception as e:
-        st.error(f"Error connecting to Athena: {e}")
+        st.error(f"Connection Error: {e}")
         st.stop()
 
 # ==========================================
-# Current Market Snapshot (All 10 Coins)
+# Temporal Trends & Asset Detail
 # ==========================================
 latest_time_wat = df['observed_at'].max()
 str_wat = latest_time_wat.strftime('%Y-%m-%d %I:%M %p WAT')
+st.caption(f"Last Pipeline Sync: {str_wat}")
 
-st.subheader(f"Current Market Snapshot (As of {str_wat})")
+@st.fragment
+def render_main_section(data):
+    # Asset Selection
+    coins = sorted(data['coin_id'].unique())
+    selected_coin = st.selectbox("Select Asset to Analyze", coins)
+    
+    coin_history = data[data['coin_id'] == selected_coin].sort_values('observed_at')
+    current_asset = coin_history.iloc[0] 
+    
+    # Detail Cards
+    col1, col2, col3 = st.columns([2, 2, 4])
+    with col1:
+        st.metric(
+            label=f"Current {selected_coin.capitalize()} Price", 
+            value=f"${current_asset['price']:,.2f}",
+            delta=f"{current_asset['pct_change_24h']:.2f}% (24h)"
+        )
+    with col2:
+        mkt_cap = current_asset.get('market_cap', 0)
+        st.metric(
+            label="Total Market Cap", 
+            value=f"${mkt_cap:,.0f}" if mkt_cap > 0 else "N/A"
+        )
+        
+    st.markdown(f'<p class="custom-subheader">{selected_coin.capitalize()} 7-Day Performance</p>', unsafe_allow_html=True)
+    
+    fig = px.line(
+        coin_history,
+        x='observed_at',
+        y=['price', 'moving_avg_24h'],
+        labels={'value': 'USD', 'observed_at': 'Time (WAT)', 'variable': 'Metric'},
+        color_discrete_map={'price': '#00f2ff', 'moving_avg_24h': '#ffaa00'},
+        height=450,
+        template="plotly_dark"
+    )
+    fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    st.plotly_chart(fig, use_container_width=True)
 
-# Filter for the most recent data
-latest_df = df[df['observed_at'] == latest_time_wat].sort_values('coin_id').reset_index(drop=True)
-
-# Display all 10 coins in two rows of 5
-row1 = latest_df.iloc[0:5]
-row2 = latest_df.iloc[5:10]
-
-cols1 = st.columns(5)
-for i, (idx, row) in enumerate(row1.iterrows()):
-    with cols1[i]:
-        st.metric(label=row['coin_id'].capitalize(), value=f"${row['price']:,.2f}", delta=f"{row['pct_change_24h']:.2f}%")
-
-cols2 = st.columns(5)
-for i, (idx, row) in enumerate(row2.iterrows()):
-    with cols2[i]:
-        st.metric(label=row['coin_id'].capitalize(), value=f"${row['price']:,.2f}", delta=f"{row['pct_change_24h']:.2f}%")
+render_main_section(df)
 
 st.divider()
 
 # ==========================================
-# Market Composition (Categorical Distribution)
+# Market Composition (Market Cap Only)
 # ==========================================
-st.subheader("Market Composition (Categorical Distribution)")
+st.markdown('<p class="custom-subheader">Market Composition Analysis</p>', unsafe_allow_html=True)
 
-latest_all_coins = df.sort_values('observed_at').groupby('coin_id').tail(1)
+# Lock metric to Market Cap
+metric_col = 'market_cap'
+latest_all = df.sort_values('observed_at').groupby('coin_id').tail(1)
 
-# Prepare Data for Pie Chart (Bitcoin vs Others)
-btc_price = latest_all_coins[latest_all_coins['coin_id'] == 'bitcoin']['price'].sum()
-others_price = latest_all_coins[latest_all_coins['coin_id'] != 'bitcoin']['price'].sum()
-pie_data = pd.DataFrame({
-    'Asset Group': ['Bitcoin', 'All Others Combined'],
-    'Total Price Value': [btc_price, others_price]
+# Logic for Pie Chart
+btc_val = latest_all[latest_all['coin_id'] == 'bitcoin'][metric_col].sum()
+others_val = latest_all[latest_all['coin_id'] != 'bitcoin'][metric_col].sum()
+
+pie_df = pd.DataFrame({
+    'Category': ['Bitcoin', 'Others Combined'],
+    'Value': [btc_val, others_val]
 })
 
-# Prepare Data for Bar Chart (Others Only)
-others_df = latest_all_coins[latest_all_coins['coin_id'] != 'bitcoin'].sort_values('price', ascending=False)
+# Logic for Bar Chart (Others only)
+others_df = latest_all[latest_all['coin_id'] != 'bitcoin'].sort_values(metric_col, ascending=False)
 
-col_pie, col_bar = st.columns(2)
+c1, c2 = st.columns(2)
 
-with col_pie:
+with c1:
     fig_pie = px.pie(
-        pie_data, 
-        values='Total Price Value', 
-        names='Asset Group', 
-        title="Bitcoin vs Others (Price Ratio)",
-        color_discrete_sequence=['#00CC96', '#636EFA']
+        pie_df, values='Value', names='Category', 
+        title="Bitcoin vs Others (Market Cap Ratio)",
+        hole=0.4, color_discrete_sequence=['#ffaa00', '#00f2ff']
     )
     st.plotly_chart(fig_pie, use_container_width=True)
 
-with col_bar:
+with c2:
     fig_bar = px.bar(
-        others_df, 
-        x='coin_id', 
-        y='price', 
-        color='coin_id', 
-        title="Price Comparison (Excluding Bitcoin)",
-        labels={'price': 'Price (USD)', 'coin_id': 'Cryptocurrency'},
+        others_df, x='coin_id', y=metric_col, color='coin_id',
+        title="Market Cap Comparison (Excluding Bitcoin)",
+        labels={metric_col: 'Market Cap (USD)', 'coin_id': 'Asset'},
         template="plotly_dark"
     )
     fig_bar.update_layout(showlegend=False)
     st.plotly_chart(fig_bar, use_container_width=True)
-
-st.divider()
-
-# ==========================================
-# Temporal Trends
-# ==========================================
-st.subheader("7-Day Price Trends and Moving Averages")
-
-@st.fragment
-def render_interactive_chart(data):
-    selected_coin = st.selectbox("Select an Asset", data['coin_id'].unique(), label_visibility="collapsed")
-    coin_data = data[data['coin_id'] == selected_coin].sort_values('observed_at')
-
-    fig = px.line(
-        coin_data,
-        x='observed_at',
-        y=['price', 'moving_avg_24h'],
-        labels={'value': 'Price (USD)', 'observed_at': 'Time (WAT)', 'variable': 'Metric'},
-        color_discrete_map={'price': '#1f77b4', 'moving_avg_24h': '#ff7f0e'},
-        height=500 
-    )
-    
-    # Clean up legend names
-    newnames = {'price': 'Actual Price', 'moving_avg_24h': '24h Moving Average'}
-    fig.for_each_trace(lambda t: t.update(name=newnames[t.name]))
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-render_interactive_chart(df)

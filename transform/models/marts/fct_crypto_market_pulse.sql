@@ -4,17 +4,15 @@ WITH base AS (
     SELECT 
         coin_id,
         price,
-        -- Remove DATE_TRUNC to keep minute precision (e.g., 06:20)
-        -- Keep the +1 hour interval to convert UTC to WAT
+        market_cap,
+        -- Applying 1-hour shift to convert UTC to WAT
         observed_at + INTERVAL '1' HOUR AS observed_at
     FROM {{ ref('stg_crypto_prices') }}
 ),
 
 metrics AS (
     SELECT 
-        coin_id,
-        price,
-        observed_at,
+        *,
         AVG(price) OVER (
             PARTITION BY coin_id 
             ORDER BY observed_at 
