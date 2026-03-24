@@ -1,5 +1,5 @@
 
-# 📈 Crypto Market Pulse: A Serverless Medallion Lakehouse
+# 📈 Crypto Market Pulse: A Serverless Lakehouse
 
 ## 🎯 Problem Statement
 Cryptocurrency markets operate 24/7, making it difficult to maintain a unified, highly accurate dataset that seamlessly bridges deep historical data with live, up-to-the-minute price action. 
@@ -50,6 +50,56 @@ Here is a deep dive into the architecture and the rationale behind each technolo
 5. **Dashboard:** Streamlit queries the Gold table in Athena to visualize the market analytics.
 
 ---
+```mermaid
+graph TD
+    %% Define Nodes
+    API(CoinGecko API)
+    
+    subgraph Data Ingestion
+        Backfill[Local Backfill Script]
+        EventBridge((AWS EventBridge <br> Hourly Cron))
+        Lambda[AWS Lambda <br> Dockerized]
+    end
+    
+    subgraph Data Lake Storage
+        Bronze[(S3 Bronze <br> Raw Parquet)]
+        Gold[(S3 Gold <br> Optimized Parquet)]
+    end
+    
+    subgraph Data Warehouse & Transformation
+        Glue[AWS Glue Crawler]
+        Athena[Amazon Athena]
+        dbtCloud((dbt Cloud <br> Orchestration))
+    end
+    
+    subgraph Presentation
+        Streamlit([Streamlit Dashboard])
+    end
+
+    %% Define Flow
+    API --> Backfill
+    API --> Lambda
+    EventBridge -. Triggers Hourly .-> Lambda
+    
+    Backfill ==>|1 Year History| Bronze
+    Lambda ==>|Live Updates| Bronze
+    
+    Bronze --> Glue
+    Glue -. Catalogs Metadata .-> Athena
+    Athena <--> dbtCloud
+    dbtCloud ==>|Cleans & Aggregates| Gold
+    
+    Gold --> Athena
+    Athena ==>|awswrangler| Streamlit
+
+    %% Styling
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:black;
+    classDef storage fill:#3F8624,stroke:#232F3E,stroke-width:2px,color:white;
+    classDef compute fill:#00A4A6,stroke:#232F3E,stroke-width:2px,color:white;
+    
+    class EventBridge,Lambda,Glue,Athena aws;
+    class Bronze,Gold storage;
+    class dbtCloud,Streamlit,Backfill compute;
 
 ## 📂 Project Directory Structure
 
