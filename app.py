@@ -125,7 +125,8 @@ fig_line.update_layout(
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     xaxis_title=None 
 )
-st.plotly_chart(fig_line, use_container_width=True)
+# config={'displayModeBar': False} removes the zoom/pan/export toolbar.
+st.plotly_chart(fig_line, use_container_width=True, config={'displayModeBar': False})
 
 # ==========================================
 # Dynamic Market Composition 
@@ -174,7 +175,7 @@ with c1:
     )
     # Tightens the chart margins to align perfectly with the adjacent bar chart.
     fig_pie.update_layout(margin=dict(t=40, b=0, l=0, r=0))
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_pie, use_container_width=True, config={'displayModeBar': False})
 
 with c2:
     # Renders a bar chart comparing the market cap of all available assets.
@@ -200,4 +201,4 @@ with c2:
     fig_bar.update_xaxes(title=None)
     
     fig_bar.update_layout(showlegend=False, margin=dict(t=40, b=0, l=0, r=0))
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, use_container_width=True, config={'displayModeBar': False})
