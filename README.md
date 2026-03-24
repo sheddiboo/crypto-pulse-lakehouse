@@ -1,4 +1,3 @@
-
 # 📈 Crypto Market Pulse: A Serverless Lakehouse
 
 ## 🎯 Problem Statement
@@ -50,6 +49,7 @@ Here is a deep dive into the architecture and the rationale behind each technolo
 5. **Dashboard:** Streamlit queries the Gold table in Athena to visualize the market analytics.
 
 ---
+
 ```mermaid
 graph TD
     %% Define Nodes
@@ -100,6 +100,7 @@ graph TD
     class EventBridge,Lambda,Glue,Athena aws;
     class Bronze,Gold storage;
     class dbtCloud,Streamlit,Backfill compute;
+```
 
 ## 📂 Project Directory Structure
 
@@ -149,9 +150,10 @@ This project implements a **Dockerized Makefile** approach. You do not need to i
 3. A free CoinGecko API Key.
 
 ### Step 1: Environment Setup
-Clone the repository and create a `.env` file in the root directory:
+Clone the repository, create a `.env` file for your API key, and install Python dependencies:
 ```bash
-COINGECKO_API_KEY="your_api_key_here"
+echo 'COINGECKO_API_KEY="your_api_key_here"' > .env
+make setup
 ```
 
 ### Step 2: Deploy Infrastructure
@@ -166,21 +168,19 @@ make tf-apply
 Build and push the Dockerized Python ingestion script to AWS ECR, then run the historical backfill script to seed your data lake:
 ```bash
 make docker-push
-python src/historical_backfill.py 
+make backfill
 ```
 
 ### Step 4: Run Transformations
-Navigate to the dbt project, ensure your `profiles.yml` points to the newly created S3 Gold bucket, and build the Medallion architecture:
+Ensure your `transform/profiles.yml` points to the newly created S3 Gold bucket, then build the Medallion architecture:
 ```bash
-cd transform
-dbt deps
-dbt build
+make dbt-run
 ```
 
 ### Step 5: Launch the Dashboard
 Start the Streamlit application locally:
 ```bash
-streamlit run app.py
+make dashboard
 ```
 
 ### Teardown
