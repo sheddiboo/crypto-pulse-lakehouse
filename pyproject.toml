@@ -5,13 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "awswrangler>=3.10.1",
     "dbt-athena-community>=1.10.0",
     "dbt-core>=1.11.7",
     "ipykernel>=7.2.0",
     "jupyter>=1.1.1",
-    "pandas>=3.0.1",
+    "pandas<3.0.0",
+    "plotly>=6.6.0",
     "pyarrow>=23.0.1",
     "python-dotenv>=1.2.2",
     "requests>=2.32.5",
+    "streamlit>=1.55.0",
     "tqdm>=4.67.3",
 ]
