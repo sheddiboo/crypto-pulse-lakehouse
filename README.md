@@ -28,6 +28,7 @@ The Data Engineering curriculum extensively covers fundamental concepts using Go
 
 ### 4. Data Warehouse & Query Engine
 * **AWS Athena + AWS Glue:** A true Lakehouse approach. **AWS Glue** catalogs metadata, while **Amazon Athena** (serverless Presto) allows for standard SQL queries directly against S3 files without the need for a traditional database.
+* **Optimization & Partitioning:** The data lakehouse implements a hierarchical partitioning strategy (`year/month/day/hour`). This design enables **Predicate Pushdown** in Athena; when the dashboard queries the last 7 days of data, the engine scans only the relevant S3 prefixes. This minimizes data processed per query, ensuring sub-second response times and staying strictly within the AWS Free Tier usage limits.
 
 ### 5. Transformations (dbt)
 * **dbt Core (dbt-athena):** Implements the Medallion architecture. It handles deduplication in the Silver layer and materializes business logic (moving averages/percentage changes) in the Gold layer.
@@ -113,16 +114,34 @@ graph TD
 
 ```text
 crypto-pulse-lakehouse/
+├── notebook/
+│   └── explore_api.ipynb         # Initial API testing and schema exploration
 ├── src/
 │   ├── historical_backfill.py    # Extracts 1-year history to S3
 │   └── lambda_function.py        # Dockerized Lambda for hourly ingestion
 ├── transform/                    # dbt project (Silver & Gold layers)
+│   ├── analyses/
+│   ├── macros/
+│   ├── models/                   # Contains stg_crypto_prices and fct_crypto_market_pulse
+│   ├── seeds/
+│   ├── snapshots/
+│   ├── tests/                    # Custom data quality tests
+│   ├── .gitignore
+│   ├── dbt_project.yml           # dbt configuration
+│   └── README.md                 # dbt documentation
+├── .env.example                  # Template for environment variables
+├── .gitignore                    # Root Git ignore file
+├── .python-version               # Python version specification
+├── .terraform.lock.hcl           # Terraform dependency lock file
 ├── app.py                        # Streamlit dashboard application
-├── main.tf                       # Terraform infrastructure definitions
+├── Dockerfile                    # Container definition for AWS Lambda deployment
+├── main.tf                       # Terraform declarative infrastructure definitions
 ├── Makefile                      # Command shortcuts for the entire pipeline
 ├── pyproject.toml                # Dependencies managed by 'uv'
-└── README.md                     # Project documentation
+├── README.md                     # Project documentation
+└── uv.lock                       # Deterministic dependency lockfile
 ```
+*(Note: Ignored files and directories such as `.venv`, `.terraform`, `data/`, `logs/`, `.env`, and terraform state files are excluded from this tree).*
 
 ---
 
@@ -132,7 +151,7 @@ The Streamlit dashboard delivers a professional, trading-platform-style UI drive
 * **Global Control:** A unified dropdown menu to switch assets and instantly update all downstream metrics.
 * **Top-Level Metrics:** Dynamic KPI cards for current price, 24h percentage change, and total market cap.
 * **Temporal Analysis:** Interactive Plotly time-series chart visualizing the 7-day trend with a 24h moving average.
-* **Categorical Composition:** Donut and Bar charts comparing the selected asset's market cap against the rest of the market.
+* **Categorical Composition:** Pie and Bar charts comparing the selected asset's market cap against the rest of the market.
 
 ---
 
@@ -164,6 +183,7 @@ make dashboard
 ```
 
 ### Teardown
+To avoid AWS charges, destroy all infrastructure when finished:
 ```bash
 make tf-destroy
 ```
