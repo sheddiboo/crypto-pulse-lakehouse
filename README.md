@@ -53,9 +53,9 @@ This hourly orchestration represents the perfect balance between providing a nea
 ## 🏗️ Pipeline Flow
 
 1. **The Backfill (One-Off):** A Python script fetches 1 year of historical data from CoinGecko, converts it to Parquet, and uploads it to the Bronze S3 bucket.
-2. **Live Ingestion (Hourly Batch):** AWS EventBridge triggers the Dockerized AWS Lambda function hourly to fetch the latest prices and drop a new Parquet file into the Bronze S3 bucket partitioned by `year/month/day/hour`.
-3. **The Data Catalog:** An AWS Glue Crawler runs on a cron schedule (`15 * * * ? *`), automatically updating the Data Catalog with new S3 partitions.
-4. **Transformation:** dbt Cloud triggers at 20 minutes past the hour, running data quality tests, deduplicating the data, and materializing the optimized Gold table in Athena.
+2. **Live Ingestion (Hourly Batch):** AWS EventBridge triggers the Dockerized AWS Lambda function every hour. Because the rule was activated immediately following the historical backfill, its natural execution time (11 minutes past the hour) perfectly maintains a continuous 60-minute interval. The function fetches the latest prices and drops a new Parquet file into the Bronze S3 bucket partitioned by `year/month/day/hour`.
+3. **The Data Catalog:** An AWS Glue Crawler runs automatically at **15 minutes past every hour** (via cron schedule `15 * * * ? *`), detecting new S3 partitions and updating the Data Catalog.
+4. **Transformation:** dbt Cloud triggers at **20 minutes past every hour**, running data quality tests, deduplicating the data, and materializing the optimized Gold table in Athena.
 5. **Dashboard:** Streamlit queries the Gold table in Athena to visualize the market analytics.
 
 ---
