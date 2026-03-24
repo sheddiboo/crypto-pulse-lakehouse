@@ -40,6 +40,16 @@ Here is a deep dive into the architecture and the rationale behind each technolo
 
 ---
 
+## ⏱️ Strategic Batching vs. Streaming (Cost Optimization)
+A core engineering decision in this project was architecting an **hourly micro-batch pipeline** rather than a live streaming pipeline. This was done strategically to maintain a $0 operational footprint by strictly adhering to free-tier provider limits:
+
+* **CoinGecko API Rate Limits:** The free tier provides exactly 10,000 API calls per month. A streaming architecture (e.g., querying every minute) would require over 43,000 calls per month, resulting in blocked requests and exorbitant API fees. By fetching data hourly, the ingestion pipeline consumes only ~744 calls per month, leaving massive headroom.
+* **dbt Cloud Allowances:** The dbt Cloud Developer tier restricts accounts to 3,000 successful job runs per month. Scheduling the transformation job hourly consumes exactly 744 runs per month.
+
+This hourly orchestration represents the perfect balance between providing a near real-time analytical dashboard and engineering a highly cost-optimized, infinitely sustainable data product.
+
+---
+
 ## 🏗️ Pipeline Flow
 
 1. **The Backfill (One-Off):** A Python script fetches 1 year of historical data from CoinGecko, converts it to Parquet, and uploads it to the Bronze S3 bucket.
