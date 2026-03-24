@@ -133,10 +133,12 @@ crypto-pulse-lakehouse/
 ---
 
 ## 📊 The Dashboard
-The Streamlit dashboard delivers a professional, trading-platform-style UI with three distinct analytical components:
-* **Tile 1 (Temporal):** An interactive Plotly time-series line chart visualizing the 7-day real-time price trend overlaid with a rolling 24-hour moving average.
-* **Tile 2 (Categorical):** Dynamic Market Composition charts (a Donut chart and a custom-formatted Bar chart). These visuals compare the selected asset's market cap (formatted cleanly into billions) against the rest of the market.
-* **Tile 3 (Metrics):** Dynamic KPI cards highlighting the current price, total market cap, and 24-hour percentage change.
+The Streamlit dashboard delivers a professional, trading-platform-style UI with interactive, dynamic analytical components driven by a global asset selector:
+
+* **Global Control:** A unified dropdown menu that allows users to seamlessly switch between assets, instantly updating all downstream metrics and charts.
+* **Top-Level Metrics:** Dynamic KPI cards highlighting the selected asset's current price, 24-hour percentage change, and total market cap.
+* **Temporal Analysis:** An interactive Plotly time-series line chart visualizing the 7-day real-time price trend overlaid with a rolling 24-hour moving average.
+* **Categorical Composition:** Dynamic Market Composition charts (a Donut chart and a custom-formatted Bar chart). These visuals compare the selected asset's market cap (formatted cleanly into billions) against the rest of the market.
 
 ---
 
