@@ -1,7 +1,9 @@
 # 📈 Crypto Market Pulse: A Serverless Lakehouse
 
-## 🌐 Live Dashboard
-**View the live, interactive data product here:** 👉 [Crypto Market Pulse Dashboard](https://crypto-pulse-lakehouse.streamlit.app/) 👈
+## 📊 Dashboard Snapshot
+*Note: The live AWS infrastructure has been decommissioned to optimize cloud computing costs. Below is a snapshot of the final Streamlit analytical output:*
+
+![Crypto Market Pulse Dashboard](dashboard.png)
 
 ---
 
@@ -55,7 +57,6 @@ This project uses an **hourly micro-batch pipeline** to remain 100% within free-
 5. **Dashboard:** Streamlit queries the Gold table in Athena to visualize the market analytics.
 
 ---
-
 ```mermaid
 graph TD
     %% Define Nodes
@@ -106,84 +107,3 @@ graph TD
     class EventBridge,Lambda,Glue,Athena aws;
     class Bronze,Gold storage;
     class dbtCloud,Streamlit,Backfill compute;
-```
-
----
-
-## 📂 Project Directory Structure
-
-```text
-crypto-pulse-lakehouse/
-├── notebook/
-│   └── explore_api.ipynb         # Initial API testing and schema exploration
-├── src/
-│   ├── historical_backfill.py    # Extracts 1-year history to S3
-│   └── lambda_function.py        # Dockerized Lambda for hourly ingestion
-├── transform/                    # dbt project (Silver & Gold layers)
-│   ├── analyses/
-│   ├── macros/
-│   ├── models/                   # Contains stg_crypto_prices and fct_crypto_market_pulse
-│   ├── seeds/
-│   ├── snapshots/
-│   ├── tests/                    # Custom data quality tests
-│   ├── .gitignore
-│   ├── dbt_project.yml           # dbt configuration
-│   └── README.md                 # dbt documentation
-├── .env.example                  # Template for environment variables
-├── .gitignore                    # Root Git ignore file
-├── .python-version               # Python version specification
-├── .terraform.lock.hcl           # Terraform dependency lock file
-├── app.py                        # Streamlit dashboard application
-├── Dockerfile                    # Container definition for AWS Lambda deployment
-├── main.tf                       # Terraform declarative infrastructure definitions
-├── Makefile                      # Command shortcuts for the entire pipeline
-├── pyproject.toml                # Dependencies managed by 'uv'
-├── README.md                     # Project documentation
-└── uv.lock                       # Deterministic dependency lockfile
-```
-*(Note: Ignored files and directories such as `.venv`, `.terraform`, `data/`, `logs/`, `.env`, and terraform state files are excluded from this tree).*
-
----
-
-## 📊 The Dashboard
-The Streamlit dashboard delivers a professional, trading-platform-style UI driven by a global asset selector:
-
-* **Global Control:** A unified dropdown menu to switch assets and instantly update all downstream metrics.
-* **Top-Level Metrics:** Dynamic KPI cards for current price, 24h percentage change, and total market cap.
-* **Temporal Analysis:** Interactive Plotly time-series chart visualizing the 7-day trend with a 24h moving average.
-* **Categorical Composition:** Pie and Bar charts comparing the selected asset's market cap against the rest of the market.
-
----
-
-## 🚀 Reproducibility
-
-### Step 1: Environment Setup
-Clone the repository and install dependencies:
-```bash
-echo 'COINGECKO_API_KEY="your_api_key_here"' > .env
-make setup
-```
-
-### Step 2: Deploy Infrastructure
-```bash
-make tf-init
-make tf-apply
-```
-
-### Step 3: Backfill & Lambda Deployment
-```bash
-make docker-push
-make backfill
-```
-
-### Step 4: Run Transformations & Launch
-```bash
-make dbt-run
-make dashboard
-```
-
-### Teardown
-To avoid AWS charges, destroy all infrastructure when finished:
-```bash
-make tf-destroy
-```
